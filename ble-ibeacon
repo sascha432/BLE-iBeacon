@@ -1,0 +1,104 @@
+#!/bin/bash
+
+show_usage() {
+    echo "usage: $(basename $0) [UUID=<UUID|generate>] [DEVICE=<device(hci0)>] [NOSCAN=<yes|no(no)>] [MAJOR=<major version(0)>] [MINOR=<minor version(0)>] [CONNECTABLE=<yes/no(no)>]"
+    exit 1
+}
+
+syslog() {
+    logger ${SYSLOG_OPTS} -t "$SYSLOG_TAG" "$@"
+}
+
+log() {
+    syslog -p daemon.notice "$@" 2>&1
+}
+
+log_error() {
+    syslog -p daemon.err "$@"
+    exit 255
+}
+
+exec() {
+    local CHECK_EXIT_CODE=$1
+    shift
+    if [ $VERBOSE -ne 0 ] ; then
+        echo $@
+        $@
+    else
+        $@ &> /dev/null
+    fi
+    if [ ${CHECK_EXIT_CODE} -ne 0 ] ; then
+        local EXIT_CODE=$?
+        if [ ${EXIT_CODE} -ne 0 ] ; then
+            log_error "$@: Failed with exit code $EXIT_CODE"
+        fi
+    fi
+}
+
+VERBOSE=0
+for ARG in $@ ; do
+    if [ "$ARG" == "--verbose" ] || [ "$ARG" == "-v" ] ; then
+        VERBOSE=1
+    fi
+done
+
+SYSLOG_TAG="ble-ibeacon"
+[ ${VERBOSE} -ne 0 ] && SYSLOG_OPTS="-s" || SYSLOG_OPTS=""
+DEVICE=
+CONNECTABLE=
+CONFIG=
+MAJOR=
+MINOR=
+NOSCAN=
+if [ -f /etc/default/ble-ibeacon ] ; then
+    . /etc/default/ble-ibeacon
+elif [ -f /etc/sysconfig/ble-ibeacon ] ; then
+    . /etc/sysconfig/ble-ibeacon
+fi
+
+UUID=$(echo ${UUID} | sed -e 's/[ -]//g')
+if [ ${#UUID} -ne 32 ] ; then
+    log_error "Invalid UUID: $UUID"
+fi
+
+TMP=""
+for POS in $(seq 0 2 31) ; do
+    TMP="$TMP${UUID:$POS:2} "
+done
+PP_UUID=${UUID:0:8}-${UUID:8:4}-${UUID:12:4}-${UUID:16:4}-${UUID:20}
+UUID=${TMP^^:0:47}
+
+if [ "$CONNECTABLE" == "yes" ] && [ "$CONNECTABLE" != "0" ] ; then
+    LEADV=0
+else
+    LEADV=3
+fi
+
+case $1 in
+    start)
+        hciconfig ${DEVICE} | grep -q " UP RUNNING"
+        if [ $? -ne 1 ] ; then
+            exec 1 hciconfig ${DEVICE} up
+        fi
+        hciconfig ${DEVICE} | grep -q " UP RUNNING"
+        if [ $? -ne 1 ] ; then
+            log_error "Device $DEVICE is not running"
+        fi
+        if [ ${NOSCAN} == "yes" ] ; then
+            exec 1 hciconfig ${DEVICE} noscan
+        fi
+        exec 0 hciconfig ${DEVICE} noleadv
+        exec 1 hcitool -i ${DEVICE} cmd 0x08 0x0008 \
+            1E 02 01 1A 1A FF 4C 00 02 15 ${UUID} $(printf "%02x %02x" $(($MAJOR / 256)) $(($MAJOR & 0xff))) $(printf "%02x %02x" $(($MINOR / 256)) $(($MINOR & 0xff))) \
+            ${CONFIG}
+        exec 1 hciconfig ${DEVICE} leadv ${LEADV}
+        log "iBeacon $PP_UUID Major $MAJOR Minor $MINOR started on $DEVICE"
+        ;;
+    stop)
+        log "iBeacon $PP_UUID Major $MAJOR Minor $MINOR stopped on $DEVICE"
+        exec 0 hciconfig ${DEVICE} noleadv
+        ;;
+    *)
+        show_usage
+        ;;
+esac

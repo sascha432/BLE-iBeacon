@@ -1,0 +1,98 @@
+#!/bin/bash
+
+show_usage() {
+    echo "usage $(basename $0): [UUID=<UUID|generate>] [DEVICE=<device(hci0)>] [NOSCAN=<yes|no(no)>] [MAJOR=<major version(0)>] [MINOR=<minor version(0)>] [CONNECTABLE=<yes/no(no)>]"
+    exit 1
+}
+
+error() {
+    echo "$@" >&2
+    exit 255
+}
+UUID=""
+DEVICE="hci0"
+NOSCAN="no"
+CONNECTABLE="no"
+MAJOR=0
+MINOR=0
+
+for ARG in $@ ; do
+    if [[ ${ARG} =~ ^UUID= ]] ; then
+        UUID="${ARG:5}"
+    elif [[  ${ARG} =~ ^DEVICE= ]] ; then
+        DEVICE="${ARG:7}"
+    elif [[  ${ARG} =~ ^NOSCAN= ]] ; then
+        NOSCAN="${ARG:7}"
+    elif [[  ${ARG} =~ ^MAJOR= ]] ; then
+        MAJOR=${ARG:6}
+    elif [[  ${ARG} =~ ^MINOR= ]] ; then
+        MINOR=${ARG:6}
+    elif [[  ${ARG} =~ ^CONNECTABLE= ]] ; then
+        CONNECTABLE="${ARG:12}"
+    else
+        show_usage
+    fi
+done
+
+HCICONFIG=$(which hciconfig)
+if [ ! -x "$HCICONFIG" ] ; then
+    error "Cannot find hciconfig"
+fi
+HCITOOL=$(which hcitool)
+if [ ! -x "$HCITOOL" ] ; then
+    error "Cannot find hcitool"
+fi
+
+if [ "$(echo "$UUID" | egrep -i "^(random|rnd|generate|gen|auto)$")" != "" ] ; then
+    UUID_GEN="$(which dbus-uuidgen)"
+    if [ -e /proc/sys/kernel/random/uuid ] ; then
+        UUID="$(cat /proc/sys/kernel/random/uuid)"
+    elif [ -x ${UUID_GEN} ] ; then
+        UUID="$(${UUID_GEN})"
+    else
+        error "Cannot auto generate UUID"
+    fi
+elif [ -z ${UUID} ] ; then
+    read -p "Enter UUID: " UUID
+fi
+TMP=$(echo ${UUID} | sed -e 's/[ -]//g')
+if [ ${#TMP} -ne 32 ] ; then
+    error "Invalid UUID: $TMP Length: ${#TMP}"
+fi
+
+if [ -d /etc/default ] ; then
+    DEFAULTS="/etc/default/ble-ibeacon"
+else
+    DEFAULTS="/etc/sysconfig/ble-ibeacon"
+fi
+
+systemctl stop ble-ibeacon
+
+cat<<EOF > ${DEFAULTS}
+# Configuration file for the BLE iBeacon service.
+
+DEVICE="${DEVICE}"
+UUID="${UUID}"
+CONFIG="C8 00"
+MAJOR=${MAJOR}
+MINOR=${MINOR}
+CONNECTABLE="${CONNECTABLE}"
+NOSCAN="${NOSCAN}"
+
+EOF
+
+cp -f ble-ibeacon.service /lib/systemd/system/ble-ibeacon.service
+cp -f ble-ibeacon /usr/bin/ble-ibeacon
+chmod 755 /usr/bin/ble-ibeacon
+
+systemctl daemon-reload
+systemctl enable ble-ibeacon
+systemctl start ble-ibeacon
+
+. ${DEFAULTS}
+echo "Device $DEVICE"
+echo "UUID $UUID"
+echo "Major $MAJOR"
+echo "Minor $MINOR"
+echo "Connectable $CONNECTABLE"
+echo "Noscan $NOSCAN"

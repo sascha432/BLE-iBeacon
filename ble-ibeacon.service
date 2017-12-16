@@ -1,0 +1,14 @@
+[Unit]
+Description=Initialize BLE iBeacon
+After=bluetooth.target
+
+[Service]
+Type=oneshot
+User=root
+RemainAfterExit=yes
+ExecStart=/usr/bin/ble-ibeacon start
+ExecStop=/usr/bin/ble-ibeacon stop
+
+[Install]
+WantedBy=multi-user.target
+
