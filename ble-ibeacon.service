@@ -1,6 +1,8 @@
 [Unit]
 Description=Initialize BLE iBeacon
-After=bluetooth.target
+Wants=syslog.target bluetooth.target
+Requires=bluetooth.service
+After=bluetooth.service
 
 [Service]
 Type=oneshot
@@ -11,4 +13,3 @@ ExecStop=/usr/bin/ble-ibeacon stop
 
 [Install]
 WantedBy=multi-user.target
-

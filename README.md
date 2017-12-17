@@ -15,7 +15,7 @@ A Bluetooth LE iBeacon service for systemd (Debian and CentOS tested)
 
 ## Install script usage
 
-``install [UUID=<UUID|generate>] [DEVICE=<device(hci0)>] [NOSCAN=<yes|no(no)>] [MAJOR=<major version(0)>] [MINOR=<minor version(0)>] [CONNECTABLE=<yes/no(no)>]``
+``install [UUID=<UUID|generate>] [DEVICE=<device(hci0)>] [NOSCAN=<yes|no(no)>] [MAJOR=<major version(0)>] [MINOR=<minor version(0)>] [CONNECTABLE=<yes/no(no)>] [INTERVAL_MIN=<min. interval in ms(500)>] [<INTERVAL_MAX=<max. interval in ms(1000)>]``
 
 ## More about iBeacons
 

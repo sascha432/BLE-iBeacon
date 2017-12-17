@@ -1,7 +1,7 @@
 #!/bin/bash
 
 show_usage() {
-    echo "usage $(basename $0): [UUID=<UUID|generate>] [DEVICE=<device(hci0)>] [NOSCAN=<yes|no(no)>] [MAJOR=<major version(0)>] [MINOR=<minor version(0)>] [CONNECTABLE=<yes/no(no)>]"
+    echo "usage $(basename $0): [UUID=<UUID|generate>] [DEVICE=<device(hci0)>] [NOSCAN=<yes|no(no)>] [MAJOR=<major version(0)>] [MINOR=<minor version(0)>] [CONNECTABLE=<yes/no(no)>] [INTERVAL_MIN=<min. interval in ms(500)>] [<INTERVAL_MAX=<max. interval in ms(1000)>]"
     exit 1
 }
 
@@ -15,24 +15,42 @@ NOSCAN="no"
 CONNECTABLE="no"
 MAJOR=0
 MINOR=0
+INTERVAL_MIN=500
+INTERVAL_MAX=1000
 
 for ARG in $@ ; do
     if [[ ${ARG} =~ ^UUID= ]] ; then
         UUID="${ARG:5}"
-    elif [[  ${ARG} =~ ^DEVICE= ]] ; then
+    elif [[ ${ARG} =~ ^DEVICE= ]] ; then
         DEVICE="${ARG:7}"
-    elif [[  ${ARG} =~ ^NOSCAN= ]] ; then
+    elif [[ ${ARG} =~ ^NOSCAN= ]] ; then
         NOSCAN="${ARG:7}"
-    elif [[  ${ARG} =~ ^MAJOR= ]] ; then
+    elif [[ ${ARG} =~ ^MAJOR= ]] ; then
         MAJOR=${ARG:6}
-    elif [[  ${ARG} =~ ^MINOR= ]] ; then
+    elif [[ ${ARG} =~ ^MINOR= ]] ; then
         MINOR=${ARG:6}
-    elif [[  ${ARG} =~ ^CONNECTABLE= ]] ; then
+    elif [[ ${ARG} =~ ^CONNECTABLE= ]] ; then
         CONNECTABLE="${ARG:12}"
+    elif [[ ${ARG} =~ ^INTERVAL_MIN= ]] ; then
+        INTERVAL_MIN=${ARG:13}
+    elif [[ ${ARG} =~ ^INTERVAL_MAX= ]] ; then
+        INTERVAL_MAX=${ARG:13}
     else
         show_usage
     fi
 done
+
+printf -v INTERVAL_MIN "%d" "$INTERVAL_MIN" 2>/dev/null
+if [ $INTERVAL_MIN -lt 100 ] ; then
+    error "Min. interval must be >=100: $INTERLVAL_MIN"
+fi
+printf -v INTERVAL_MAX "%d" "$INTERVAL_MAX" 2>/dev/null
+if [ $INTERVAL_MAX -gt 30000 ] ; then
+    error "Max. interval must be <=30000: $INTERVAL_MAX"
+fi
+if [ $INTERVAL_MIN -gt $INTERVAL_MAX ] ; then
+    error "Min. interval must be lower than max. interval"
+fi
 
 HCICONFIG=$(which hciconfig)
 if [ ! -x "$HCICONFIG" ] ; then
@@ -78,6 +96,8 @@ MAJOR=${MAJOR}
 MINOR=${MINOR}
 CONNECTABLE="${CONNECTABLE}"
 NOSCAN="${NOSCAN}"
+INTERVAL_MIN=${INTERVAL_MIN}
+INTERVAL_MAX=${INTERVAL_MAX}
 
 EOF
 
@@ -96,3 +116,5 @@ echo "Major $MAJOR"
 echo "Minor $MINOR"
 echo "Connectable $CONNECTABLE"
 echo "Noscan $NOSCAN"
+echo "Min. interval $INTERVAL_MIN"
+echo "Max. interval $INTERVAL_MAX"

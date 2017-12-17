@@ -1,7 +1,7 @@
 #!/bin/bash
 
 show_usage() {
-    echo "usage: $(basename $0) [UUID=<UUID|generate>] [DEVICE=<device(hci0)>] [NOSCAN=<yes|no(no)>] [MAJOR=<major version(0)>] [MINOR=<minor version(0)>] [CONNECTABLE=<yes/no(no)>]"
+    echo "usage: $(basename $0) [UUID=<UUID|generate>] [DEVICE=<device(hci0)>] [NOSCAN=<yes|no(no)>] [MAJOR=<major version(0)>] [MINOR=<minor version(0)>] [CONNECTABLE=<yes/no(no)>] [INTERVAL=<from-to interval in ms(500-1000)>]"
     exit 1
 }
 
@@ -18,10 +18,18 @@ log_error() {
     exit 255
 }
 
+word() {
+    printf "%02x %02x" $(($1 & 0xff)) $(($1 / 256))
+}
+
+wordl() {
+    printf "%02x %02x" $(($1 / 256)) $(($1 & 0xff))
+}
+
 exec() {
     local CHECK_EXIT_CODE=$1
     shift
-    if [ $VERBOSE -ne 0 ] ; then
+    if [ ${VERBOSE} -ne 0 ] ; then
         echo $@
         $@
     else
@@ -50,6 +58,7 @@ CONFIG=
 MAJOR=
 MINOR=
 NOSCAN=
+INTERVAL=
 if [ -f /etc/default/ble-ibeacon ] ; then
     . /etc/default/ble-ibeacon
 elif [ -f /etc/sysconfig/ble-ibeacon ] ; then
@@ -69,9 +78,9 @@ PP_UUID=${UUID:0:8}-${UUID:8:4}-${UUID:12:4}-${UUID:16:4}-${UUID:20}
 UUID=${TMP^^:0:47}
 
 if [ "$CONNECTABLE" == "yes" ] && [ "$CONNECTABLE" != "0" ] ; then
-    LEADV=0
+    TYPE=00
 else
-    LEADV=3
+    TYPE=03
 fi
 
 case $1 in
@@ -87,11 +96,15 @@ case $1 in
         if [ ${NOSCAN} == "yes" ] ; then
             exec 1 hciconfig ${DEVICE} noscan
         fi
+    # Disable LE Advertisement
         exec 0 hciconfig ${DEVICE} noleadv
+    # LE Set Advertising Data
         exec 1 hcitool -i ${DEVICE} cmd 0x08 0x0008 \
-            1E 02 01 1A 1A FF 4C 00 02 15 ${UUID} $(printf "%02x %02x" $(($MAJOR / 256)) $(($MAJOR & 0xff))) $(printf "%02x %02x" $(($MINOR / 256)) $(($MINOR & 0xff))) \
-            ${CONFIG}
-        exec 1 hciconfig ${DEVICE} leadv ${LEADV}
+            1E 02 01 1A 1A FF 4C 00 02 15 ${UUID} $(wordl ${MAJOR}) $(wordl ${MINOR}) ${CONFIG}
+    # LE Set Advertising Parameters
+        exec 1 hcitool -i ${DEVICE} cmd 0x08 0x0006 $(word $(($INTERVAL_MIN * 1000 / 625))) $(word $(($INTERVAL_MAX * 1000 / 625))) ${TYPE} 00 00 00 00 00 00 00 00 07 00
+        # LE Set Advertise Enable
+        exec 1 hcitool -i ${DEVICE} cmd 0x08 0x000a 01
         log "iBeacon $PP_UUID Major $MAJOR Minor $MINOR started on $DEVICE"
         ;;
     stop)
