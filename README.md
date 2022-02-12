@@ -17,6 +17,10 @@ A Bluetooth LE iBeacon service for systemd (Debian and CentOS tested)
 
 ``install [UUID=<UUID|generate>] [DEVICE=<device(hci0)>] [NOSCAN=<yes|no(no)>] [MAJOR=<major version(0)>] [MINOR=<minor version(0)>] [CONNECTABLE=<yes/no(no)>] [INTERVAL_MIN=<min. interval in ms(500)>] [<INTERVAL_MAX=<max. interval in ms(1000)>]``
 
+## Issues with iBeacon disabled after startup
+
+Check ``ble-ibeacon.service`` for options for a delayed startup or additional services to be started before the iBeacon service
+
 ## More about iBeacons
 
 https://en.wikipedia.org/wiki/IBeacon

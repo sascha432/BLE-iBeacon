@@ -2,9 +2,15 @@
 Description=Initialize BLE iBeacon
 Wants=syslog.target bluetooth.target
 Requires=bluetooth.service
-After=bluetooth.service
+After=multi-user.target bluetooth.service
+
+# if using home assistant, add your service here
+#After=multi-user.target bluetooth.service hass.service
 
 [Service]
+# delay startup in case another service resets the ibeacon
+# pull request from cweakland
+ExecStartPre=/bin/sleep 30
 Type=oneshot
 User=root
 RemainAfterExit=yes
@@ -13,3 +19,4 @@ ExecStop=/usr/bin/ble-ibeacon stop
 
 [Install]
 WantedBy=multi-user.target
+
