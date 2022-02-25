@@ -1,5 +1,10 @@
 # Changelog
 
+## 2022-02-25
+
+- Fixed an issue with with the version number and transmit power
+- Currently the update interval is fixed to 1 second
+
 ## 2022-02-11
 
 - Added options to the systemd startup script

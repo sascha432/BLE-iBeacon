@@ -1,7 +1,7 @@
 #!/bin/bash
 
 show_usage() {
-    echo "usage: $(basename $0) [UUID=<UUID|generate>] [DEVICE=<device(hci0)>] [NOSCAN=<yes|no(no)>] [MAJOR=<major version(0)>] [MINOR=<minor version(0)>] [CONNECTABLE=<yes/no(no)>] [INTERVAL=<from-to interval in ms(500-1000)>]"
+    echo "usage: $(basename $0) [UUID=<UUID|generate>] [DEVICE=<device(hci0)>] [NOSCAN=<yes|no(yes)>] [MAJOR=<major version(5)>] [MINOR=<minor version(6)>] [CONNECTABLE=<yes/no(no)>] [INTERVAL=<from-to interval in ms(500-1000)>]"
     exit 1
 }
 
@@ -22,8 +22,8 @@ word() {
     printf "%02x %02x" $(($1 & 0xff)) $(($1 / 256))
 }
 
-wordl() {
-    printf "%02x %02x" $(($1 / 256)) $(($1 & 0xff))
+byte() {
+    printf "%02x" $(($1 & 0xff))
 }
 
 exec() {
@@ -59,6 +59,7 @@ MAJOR=
 MINOR=
 NOSCAN=
 INTERVAL=
+TX_LEVEL=
 if [ -f /etc/default/ble-ibeacon ] ; then
     . /etc/default/ble-ibeacon
 elif [ -f /etc/sysconfig/ble-ibeacon ] ; then
@@ -85,24 +86,24 @@ fi
 
 case $1 in
     start)
-        hciconfig ${DEVICE} | grep -q " UP RUNNING"
-        if [ $? -ne 1 ] ; then
-            exec 1 hciconfig ${DEVICE} up
-        fi
+        exec 1 hciconfig ${DEVICE} up
         hciconfig ${DEVICE} | grep -q " UP RUNNING"
         if [ $? -ne 1 ] ; then
             log_error "Device $DEVICE is not running"
         fi
+        exec 1 hciconfig ${DEVICE} leadv 3
         if [ ${NOSCAN} == "yes" ] ; then
             exec 1 hciconfig ${DEVICE} noscan
         fi
-    # Disable LE Advertisement
-        exec 0 hciconfig ${DEVICE} noleadv
-    # LE Set Advertising Data
+        # LE Set Advertising Data
         exec 1 hcitool -i ${DEVICE} cmd 0x08 0x0008 \
-            1E 02 01 1A 1A FF 4C 00 02 15 ${UUID} $(wordl ${MAJOR}) $(wordl ${MINOR}) ${CONFIG}
-    # LE Set Advertising Parameters
-        exec 1 hcitool -i ${DEVICE} cmd 0x08 0x0006 $(word $(($INTERVAL_MIN * 1000 / 625))) $(word $(($INTERVAL_MAX * 1000 / 625))) ${TYPE} 00 00 00 00 00 00 00 00 07 00
+            1E 02 01 1A 1A FF 4C 00 02 15 \
+            ${UUID} \
+            $(word ${MAJOR}) $(word ${MINOR}) \
+            $(byte $((256 + ${TX_LEVEL})))
+        # LE Set Advertising Parameters
+        #exec 1 hcitool -i ${DEVICE} cmd 0x08 0x0006 $(word $(($INTERVAL_MIN * 1000 / 625))) $(word $(($INTERVAL_MAX * 1000 / 625))) ${TYPE} 00 00 00 00 00 00 00 00 07 00
+        exec 1 hcitool -i ${DEVICE} cmd 0x08 0x0006 a0 00 a0 00 03 00 00 00 00 00 00 00 00 07 00
         # LE Set Advertise Enable
         exec 1 hcitool -i ${DEVICE} cmd 0x08 0x000a 01
         log "iBeacon $PP_UUID Major $MAJOR Minor $MINOR started on $DEVICE"
@@ -110,6 +111,7 @@ case $1 in
     stop)
         log "iBeacon $PP_UUID Major $MAJOR Minor $MINOR stopped on $DEVICE"
         exec 0 hciconfig ${DEVICE} noleadv
+        exec 0 hcitool -i ${DEVICE} cmd 0x08 0x000a 00
         ;;
     *)
         show_usage

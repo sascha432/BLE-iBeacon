@@ -8,9 +8,6 @@ After=multi-user.target bluetooth.service
 #After=multi-user.target bluetooth.service hass.service
 
 [Service]
-# delay startup in case another service resets the ibeacon
-# pull request from cweakland
-ExecStartPre=/bin/sleep 30
 Type=oneshot
 User=root
 RemainAfterExit=yes
